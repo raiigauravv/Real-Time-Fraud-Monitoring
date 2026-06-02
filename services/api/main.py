@@ -4,10 +4,12 @@ from sse_starlette.sse import EventSourceResponse
 from starlette.requests import Request
 import os, json, time, pandas as pd, asyncio, sqlalchemy as sa
 
-ALERTS_SINK = os.getenv("ALERTS_SINK","/app/data/alerts.csv")
-LATEST_SINK  = os.getenv("LATEST_SINK","/app/data/latest.csv")
-THRESHOLD_FILE = os.getenv("THRESHOLD_FILE","/app/data/threshold.json")
-DB_URL = os.getenv("DB_URL")
+ALERTS_SINK    = os.getenv("ALERTS_SINK",    "/app/data/alerts.csv")
+LATEST_SINK    = os.getenv("LATEST_SINK",    "/app/data/latest.csv")
+THRESHOLD_FILE = os.getenv("THRESHOLD_FILE", "/app/data/threshold.json")
+DRIFT_FILE     = os.getenv("DRIFT_SINK",     "/app/data/drift.json")
+META_FILE      = os.getenv("META_FILE",      "/app/model_meta.json")
+DB_URL         = os.getenv("DB_URL")
 
 app = FastAPI(title="Fraud API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -85,6 +87,28 @@ async def sse_file(path, interval=1.0):
         except FileNotFoundError:
             pass
         await asyncio.sleep(interval)
+
+@app.get("/drift")
+def get_drift():
+    """Return latest model performance / drift metrics written by stream_processor."""
+    try:
+        with open(DRIFT_FILE) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {"drift_status": "no_data", "message": "Drift file not yet written — processing in progress"}
+    except Exception as e:
+        return {"drift_status": "error", "message": str(e)}
+
+
+@app.get("/model")
+def get_model_meta():
+    """Return model metadata: name, F1, PR-AUC, threshold used at training."""
+    for path in [META_FILE, "/app/model_meta.json", "model_meta.json"]:
+        if os.path.exists(path):
+            with open(path) as f:
+                return json.load(f)
+    return {"message": "model_meta.json not found — run train.py first"}
+
 
 @app.get("/stream/alerts")
 async def stream_alerts(request: Request):

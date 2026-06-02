@@ -39,6 +39,8 @@ services:
       THRESHOLD_FILE: /app/data/threshold.json
       ALERTS_SINK: /app/data/alerts.csv
       LATEST_SINK: /app/data/latest.csv
+      DRIFT_SINK: /app/data/drift.json
+      META_FILE: /app/data/model_meta.json
     volumes:
       - ./data:/app/data
       - ./services/api:/app
@@ -79,10 +81,12 @@ services:
       TOPIC_TRANSACTIONS: transactions
       ALERTS_SINK: /app/data/alerts.csv
       LATEST_SINK: /app/data/latest.csv
+      DRIFT_SINK: /app/data/drift.json
       THRESHOLD_FILE: /app/data/threshold.json
       SLACK_WEBHOOK_URL:
       DB_URL: postgresql+psycopg2://fraud:fraudpw@postgres:5432/frauddb
       MODEL_PATH: /app/model.pkl
+      MODEL_OUT: /app/model.pkl
     volumes:
       - ./data:/app/data
       - ./services/stream_processor:/app

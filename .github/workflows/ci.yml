@@ -1,11 +1,77 @@
 name: CI
+
 on: [push, pull_request]
+
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
-        with: { python-version: '3.11' }
-      - run: pip install -r requirements.txt || true
-      - run: python -V
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint imports (featurizer + threshold)
+        working-directory: services/stream_processor
+        run: python -c "from featurizer import FEATURE_NAMES, to_features; print('featurizer OK, features:', len(FEATURE_NAMES))"
+
+      - name: Validate train.py parses correctly
+        working-directory: services/stream_processor
+        run: python -c "
+import ast, sys
+with open('train.py') as f:
+    ast.parse(f.read())
+print('train.py syntax OK')
+"
+
+      - name: Validate app.py parses correctly
+        working-directory: services/stream_processor
+        run: python -c "
+import ast
+with open('app.py') as f:
+    ast.parse(f.read())
+print('app.py syntax OK')
+"
+
+      - name: Validate API parses correctly
+        working-directory: services/api
+        run: python -c "
+import ast
+with open('main.py') as f:
+    ast.parse(f.read())
+print('api/main.py syntax OK')
+"
+
+      - name: Check LightGBM importable
+        run: python -c "import lightgbm; print('LightGBM', lightgbm.__version__)"
+
+      - name: Check XGBoost importable
+        run: python -c "import xgboost; print('XGBoost', xgboost.__version__)"
+
+      - name: Check SHAP importable
+        run: python -c "import shap; print('SHAP', shap.__version__)"
+
+      - name: Ensemble smoke test (no real data needed)
+        run: python -c "
+import numpy as np
+from sklearn.ensemble import VotingClassifier
+from xgboost import XGBClassifier
+from lightgbm import LGBMClassifier
+
+X = np.random.randn(200, 29)
+y = np.random.randint(0, 2, 200)
+
+xgb  = XGBClassifier(n_estimators=5, verbosity=0, random_state=42)
+lgbm = LGBMClassifier(n_estimators=5, verbose=-1, random_state=42)
+ens  = VotingClassifier([('xgb', xgb), ('lgbm', lgbm)], voting='soft')
+ens.fit(X, y)
+
+proba = ens.predict_proba(X[:5])[:, 1]
+assert proba.shape == (5,), 'Wrong shape'
+assert all(0 <= p <= 1 for p in proba), 'Probabilities out of range'
+print('Ensemble smoke test PASSED  proba[:5]:', proba.round(3))
+"
