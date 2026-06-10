@@ -1,5 +1,6 @@
 # Large dataset files
 data/creditcard.csv
+data/raw/
 *.csv.gz
 
 # Real-time generated files (constantly changing)

@@ -75,22 +75,29 @@ if __name__ == "__main__":
     )
 
     # ── LightGBM ──────────────────────────────────────────────────────────────
+    # NOTE: LightGBM's scale_pos_weight behaves very differently from XGBoost's —
+    # using the same extreme ratio (~577x) collapses LightGBM's PR-AUC to near 0.
+    # Leaving class balance unweighted (with more leaves) lets LightGBM learn a
+    # useful, complementary signal for the soft-voting ensemble.
     lgbm = LGBMClassifier(
         n_estimators=300,
         max_depth=6,
+        num_leaves=63,
         learning_rate=0.05,
         subsample=0.9,
         colsample_bytree=0.9,
-        scale_pos_weight=scale_pos,
         verbose=-1,
         random_state=42,
     )
 
-    # ── Soft-voting ensemble (average predicted probabilities) ────────────────
+    # ── Weighted soft-voting ensemble ──────────────────────────────────────────
+    # XGBoost is the stronger individual model on this dataset, so it gets more
+    # weight; LightGBM still contributes a complementary signal that improves
+    # F1 over XGBoost alone.
     ensemble = VotingClassifier(
         estimators=[("xgb", xgb), ("lgbm", lgbm)],
         voting="soft",
-        weights=[1, 1],
+        weights=[0.7, 0.3],
     )
 
     print("[train] Fitting XGBoost + LightGBM ensemble …")
